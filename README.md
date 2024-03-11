@@ -22,3 +22,7 @@ Then you can run
 ```
 python3 src/TetrisBot.py
 ```
+
+## TODO
+- update blank tile
+- update game over png

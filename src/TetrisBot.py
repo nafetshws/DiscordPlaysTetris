@@ -1,19 +1,28 @@
 from PIL import Image, ImageFilter
 import random
+import os
 
 class TetrisBot:
 
 	def __init__(self):
 		self.board = []
 		self.current_block_pos = {"RotationPoint": [], "RelativePoints": []}
-		self.number = 0
+		self.tetromino_type = 0
 		self.can_go_down_further = True
-		self.current_count = 0
-		self.res_path = "../res/"
+		self.image_count = 0
+
+		#paths to sprites
+		self.res_path = os.path.dirname(__file__) + "/../res/" 
 		self.sprites_path = self.res_path + "sprites/"
+		self.current_board_path = self.res_path + "current_board.png"
+
+		#Constants
+		self.TILE_SIZE = 64
+
 		self.init_board()
 
 	def init_board(self):
+		# init a 10x20 board
 		self.board =[
 			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -36,350 +45,331 @@ class TetrisBot:
 			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]												
 
-	def convert_rel_to_con(self, points=None, rotation=None):
-		concrete_values = []
+	'''
+	The RotationPoint stores the absolute coordinates of the rotation point of the tetromino.
+	The RelativePoints are relative coordinates to the rotation point
+	The method converts all coordinates of the tetromino tiles to absolute coordinates
+	'''
+	def get_absolute_coordinates(self, points=None, rotation=None):
+		absolute_coordinates = []
+
+		#init values if no params were given
 		if points == None:
 			points = self.current_block_pos["RelativePoints"]
 		if rotation == None:
 			rotation = self.current_block_pos["RotationPoint"]
+
+		# convert relative to absolute
 		for relative_point in points:
 			col = relative_point[0] + rotation[0]		
 			row = (rotation[1] - relative_point[1])
-			concrete_values.append([col, row])
-		return concrete_values
+			absolute_coordinates.append([col, row])
 
-	def check_ground(self):
-		for pos in self.convert_rel_to_con():
-			row_index = pos[1]
-			column_index = pos[0]
-			is_in_current = False
-
-			if row_index == (len(self.board) - 1):
-				return False
-
-			if self.board[row_index + 1][column_index] != 0:
-				for pos_2 in self.convert_rel_to_con():
-					if pos_2[1] == row_index + 1 and pos_2[0] == column_index:
-						is_in_current = True
-						break
-				if not is_in_current:
-					return False
-
-		return True
+		return absolute_coordinates
 
 	def move_left(self):
-		can_move_left = True
-		for pos in self.convert_rel_to_con():
+		print("Trying to move left")
+		#check if one tile is already in the leftmost position
+		for pos in self.get_absolute_coordinates():
 			if pos[0] <= 0:
-				can_move_left = False
-				break
+				# Tetromino cannot be moved to the left
+				return
 
-		if can_move_left:
-			for pos in self.convert_rel_to_con():
-				if self.board[pos[1]][pos[0] - 1] != 0: 
-					for pos_2 in self.convert_rel_to_con():
-						if self.board[pos_2[1]][pos_2[0]] == self.board[pos[1]][pos[0] - 1]:
-							can_move_left = True
-							break
-						else:
-							can_move_left = False
-					if not can_move_left:
-						break
+		#check if every tile can move left
+		for pos in self.get_absolute_coordinates():
+			row = pos[1]
+			col = pos[0]
+			#check if tile on the left is not blank and is not part of the tetromino
+			if self.board[row][col - 1] != 0 and [col - 1, row] not in self.get_absolute_coordinates():
+				return
 
-		#adjust to relative
-		if can_move_left:
-			for pos in self.convert_rel_to_con():
-				self.board[pos[1]][pos[0]] = 0
-			if len(self.current_block_pos["RotationPoint"]) != 0:
-				self.current_block_pos["RotationPoint"][0] = self.current_block_pos["RotationPoint"][0] - 1
-			for pos in self.convert_rel_to_con():
-				self.board[pos[1]][pos[0]] = self.number
+		print("Actually moving to the left")
+		#Move tetromino to the left
+		for pos in self.get_absolute_coordinates():
+			#Make the tiles at the old coordinates blank
+			self.board[pos[1]][pos[0]] = 0
+		if len(self.current_block_pos["RotationPoint"]) != 0:
+			#Move the rotation point one tile to the left
+			self.current_block_pos["RotationPoint"][0] = self.current_block_pos["RotationPoint"][0] - 1
+		for pos in self.get_absolute_coordinates():
+			#Set new tile positions
+			self.board[pos[1]][pos[0]] = self.tetromino_type
 
 	def move_right(self):
-		can_move_right = True
-		for pos in self.convert_rel_to_con():
+		for pos in self.get_absolute_coordinates():
 			if pos[0] >= 9:
-				can_move_right = False
-				break
-		if can_move_right:
-			for pos in self.convert_rel_to_con():
-				if self.board[pos[1]][pos[0] + 1] != 0: 
-					for pos_2 in self.convert_rel_to_con():
-						if self.board[pos_2[1]][pos_2[0]] == self.board[pos[1]][pos[0] + 1]:
-							can_move_right = True
-							break
-						else:
-							can_move_right = False
-					if not can_move_right:
-						break							
-		if can_move_right:
-			for pos in self.convert_rel_to_con():
-				self.board[pos[1]][pos[0]] = 0
-			if len(self.current_block_pos["RotationPoint"]) != 0:
-				self.current_block_pos["RotationPoint"][0] = self.current_block_pos["RotationPoint"][0] + 1
-			for pos in self.convert_rel_to_con():		
-				self.board[pos[1]][pos[0]] = self.number
+				return
 
-	def check_if_movement_is_ok(self, old, new):
-		board = self.board	
-		old_values = self.convert_rel_to_con(rotation=old)
-		for value in old_values:
-			board[value[1]][value[0]] = 0
-		new_values = self.convert_rel_to_con(rotation=new)
-		for value in new_values:
-			if value[0] < 10 and value[0] >= 0:
-				if board[value[1]][value[0]] != 0:
-					return False
+		#check if every tile can move right
+		for pos in self.get_absolute_coordinates():
+			row = pos[1]
+			col = pos[0]
+			#check if tile on the right is not blank and is not part of the tetromino
+			if self.board[row][col + 1] != 0 and [col + 1, row] not in self.get_absolute_coordinates():
+				return
+
+		#Move tetromino to the right
+		for pos in self.get_absolute_coordinates():
+			#Make the tiles at the old coordinates blank
+			self.board[pos[1]][pos[0]] = 0
+		if len(self.current_block_pos["RotationPoint"]) != 0:
+			#Move the rotation point one tile to the left
+			self.current_block_pos["RotationPoint"][0] = self.current_block_pos["RotationPoint"][0] + 1
+		for pos in self.get_absolute_coordinates():		
+			#Set new tile positions
+			self.board[pos[1]][pos[0]] = self.tetromino_type
+
+	'''
+	How to rotate by a degrees arround an origin (clockwise) 
+	xNew = x * cos(a) - y * sin(a)
+	yNew = x * sin(a) + y * cos(a)
+	-> for 90 degrees:
+	xNew = -y
+	yNew = x
+	'''
+	def rotate(self):
+		new_relative_points = []
+		self.remove_tetromino_from_board()
+		#rotate each tile of the tetromino arround the origin
+		for point in self.current_block_pos["RelativePoints"]:
+			new_relative_points.append([point[1], -point[0]])
+
+		#check if rotation fits
+		if self.check_if_tetromino_fits(new_relative_points):
+			self.current_block_pos["RelativePoints"] = new_relative_points
+			self.add_tetromino_to_board()
+			return True
+
+		#unable to rotate tetromino
+		self.add_tetromino_to_board()
+		return False
+		#else:
+		#	self.add_tetromino_to_board()
+		#	self.move_down_current_block(1)
+
+	def move_down_tetromino(self, distance):
+		can_go_down_further = True
+
+		#remove tetromino from board
+		self.remove_tetromino_from_board()
+
+		#Move tetromino at most <distance> blocks down
+		for _ in range(distance):
+			if self.can_tetromino_move_down():
+				#move rotation point down by one
+				self.current_block_pos["RotationPoint"] = [self.current_block_pos["RotationPoint"][0], self.current_block_pos["RotationPoint"][1] + 1]
+				can_go_down_further = True
 			else:
-				return False
-		return True
+				can_go_down_further = False
+				break
 
-	def move_down_current_block(self, amount):
-		if len(self.current_block_pos["RelativePoints"]) > 0:
-			for n in range(amount):
-				if self.check_ground():
-					for pos in self.convert_rel_to_con():
-						number = self.board[pos[1]][pos[0]]
-						self.board[pos[1]][pos[0]] = 0
-					self.current_block_pos["RotationPoint"] = [self.current_block_pos["RotationPoint"][0], self.current_block_pos["RotationPoint"][1] + 1]
-					self.can_go_down_further = True
-				else:
-					self.can_go_down_further = False
-					break
-			for pos in self.convert_rel_to_con():
-				row = pos[1]
-				col = pos[0]
-				self.board[row][col] = self.number
+		#add tetromino to board again
+		self.add_tetromino_to_board()
 
-		if not self.can_go_down_further:
-			self.update_board()
-			self.spawn_new_block()
-	
+		return can_go_down_further
+		#Tetromino can't go down any further. 
+		#if not can_go_down_further:
+		#	self.clear_lines()
+		#	self.spawn_new_tetromino()
 
-	def delete_current_pos(self):
-		for i in range(len(self.convert_rel_to_con())):
-			row = self.convert_rel_to_con()[i][1]
-			col = self.convert_rel_to_con()[i][0]
+	#Sets tetromino positions on the board
+	def add_tetromino_to_board(self):
+		for coords in self.get_absolute_coordinates():
+			row = coords[1]
+			col = coords[0]
+			self.board[row][col] = self.tetromino_type
+
+	#Remove tetromino from board
+	def remove_tetromino_from_board(self):
+		for coord in self.get_absolute_coordinates():
+			col = coord[0]
+			row = coord[1] 
 			self.board[row][col] = 0
 
-	def update_block_position(self):
-		for i in range(len(self.convert_rel_to_con())):
-			row = self.convert_rel_to_con()[i][1]
-			col = self.convert_rel_to_con()[i][0]
-			self.board[row][col] = self.number
-
-	def check_if_fits(self, new_points):
-		abs_points = self.convert_rel_to_con(points=new_points)
-		for point in abs_points:
+	#takes new relative points of the tetromino and checks if it fits on the board
+	def check_if_tetromino_fits(self, new_relative_points, new_rotation_point=None):
+		for point in self.get_absolute_coordinates(points=new_relative_points, rotation=new_rotation_point):
+			#check if rotated tetromino is out of map (y-axis) 
 			if point[1] > len(self.board[0]) - 1 or point[1] < 0:
 				return False
+			#check if rotated tetromino is out of map (x-axis) 
 			if point[0] >= len(self.board) or point[0] < 0:
 				return False
-			if not point[0] >= 10:
-				if self.board[point[1]][point[0]] != 0:
-					return False
-			else:
+			#check if tile position is blank			
+			if self.board[point[1]][point[0]] != 0:
 				return False
+
 		return True
 
-	def rotate(self):
-		new_points = []
-		self.delete_current_pos()
-		for point in self.current_block_pos["RelativePoints"]:
-			new_points.append([point[1], -point[0]])
-		if self.check_if_fits(new_points):
-			self.current_block_pos["RelativePoints"] = new_points
-			self.update_block_position()
-		else:
-			self.update_block_position()
-			self.move_down_current_block(1)
+	#checks if tetromino has hit a tile or the bottom row
+	def can_tetromino_move_down(self):
+		for pos in self.get_absolute_coordinates():
+			if pos[1] >= len(self.board)-1:
+				return False
 
-				
-	def update_board(self):
-		trash = {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0, "9": 0, "10": 0, "11": 0, "12": 0, "13": 0, "14": 0, "15": 0}
+		#check if every tile can move down
+		for pos in self.get_absolute_coordinates():
+			row = pos[1]
+			col = pos[0]
+			#check if tile below is not blank and is not part of the tetromino
+			if self.board[row + 1][col] != 0 and [row + 1, col] not in self.get_absolute_coordinates():
+				return False
+
+		return True
+
+	def clear_lines(self):
+		#init dict
+		elements_per_row = {}
+		for i in range(len(self.board)):
+			elements_per_row[i] = 0
+
+		#count elements per row
 		for row in range(len(self.board)):
-			for column in range(len(self.board[row])):
-				if self.board[row][column] != 0:
-					index_str = str(row)
-					trash[index_str] += 1
-		for i in range(16):
-			i_str = str(i)
-			if trash[i_str] == 10:
-				self.delete_row(i)
+			for col in range(len(self.board[row])):
+				if self.board[row][col] != 0:
+					elements_per_row[row] += 1
 
+		#clear full lines
+		for row in range(len(self.board)):
+			if elements_per_row[row] >= 10:
+				self.delete_row(row)
+
+	#removes a line and placed an empty line on top
 	def delete_row(self, list_index):
 		self.board.pop(list_index)
-		a = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-		self.board.insert(0, a)
+		tmp = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+		self.board.insert(0, tmp)
 
-	def spawn_new_block(self):
-		number = random.randint(1, 5)
+	def spawn_new_tetromino(self):
+		new_tetromino_type = random.randint(1, 5)
 		self.current_block_pos["RelativePoints"].clear()
 		self.current_block_pos["RotationPoint"].clear()
-		is_valid = True
-		self.number = number
 
-		if number == 1:
+		new_relative_points = [] 
+		new_rotation_point = []
+
+		if new_tetromino_type == 1:
 			#L-form 
-			is_valid = True
-			for n in range(len(self.board[0])):
-				if self.board[0][n] != 0 or self.board[1][n] != 0:
-					self.game_over()
-					is_valid = False
-					self.init_board()
-					self.start_game()	
-					break
-			if is_valid:
-				for n in range(len(self.board[0])):
-					if n == 4 or n == 5 or n == 6:
-						self.board[0][n] = number
-						if n == 4:
-							self.board[1][n] = number
-				self.current_block_pos["RelativePoints"] = [[-1, -1],[-1, 0],[0, 0], [1, 0]]
-				self.current_block_pos["RotationPoint"] = [5,0]
-		elif number == 2:
-			#block-form 
-			is_valid = True
-			for n in range(len(self.board[0])):
-				if self.board[0][n] != 0 or self.board[1][n] != 0:
-					self.game_over()
-					is_valid = False
-					self.init_board()
-					self.start_game()	
-					break
-			if is_valid:
-				for n in range(len(self.board[0])):
-					if n == 5 or n == 6:
-						self.board[0][n] = number
-						self.board[1][n] = number
-
-				self.current_block_pos["RelativePoints"] = [[0, 1],[0, 0], [1, 0], [1, 1]]
-				self.current_block_pos["RotationPoint"] = [5,1]
-		elif number == 3:
+			new_relative_points = [[-1, -1],[-1, 0],[0, 0], [1, 0]]
+			new_rotation_point = [4, 0]
+		elif new_tetromino_type == 2:
+			#O-form 
+			new_relative_points = [[0, 1],[0, 0], [1, 0], [1, 1]]
+			new_rotation_point = [4, 1]
+		elif new_tetromino_type == 3:
 			#I-Form 
-			is_valid = True
-			for n in range(len(self.board[0])):
-				if self.board[0][n] != 0:
-					is_valid = False
-					self.game_over()
-					self.init_board()
-					self.start_game()	
-					break
-			if is_valid:
-				for n in range(len(self.board[0])):
-					if n == 4 or n == 5 or n == 6 or n == 7:
-						self.board[0][n] = number
-
-				self.current_block_pos["RelativePoints"] = [[-1, 0],[0, 0], [1, 0], [2, 0]]
-				self.current_block_pos["RotationPoint"] = [5,0]
-
-		elif number == 4:
-			#s-form
-			is_valid = True
-			for n in range(len(self.board[0])):
-				if self.board[0][n] != 0 or self.board[1][n]:
-					is_valid = False
-					self.game_over()
-					self.init_board()
-					self.start_game()	
-					break
-			if is_valid:
-				for n in range(len(self.board[0])):
-					if n == 6 or n == 7:
-						self.board[0][n] = number
-						if n == 6:
-							self.board[1][n] = number
-					elif n == 5:
-						self.board[1][n] = number 
-				
-				self.current_block_pos["RelativePoints"] = [[-1, 0],[0, 0], [0, 1], [1, 1]]
-				self.current_block_pos["RotationPoint"] = [6,1]
-
-		elif number == 5:
+			new_relative_points = [[-1, 0],[0, 0], [1, 0], [2, 0]]
+			new_rotation_point = [5, 0]
+		elif new_tetromino_type == 4:
+			#S-form
+			new_relative_points = [[-1, 0],[0, 0], [0, 1], [1, 1]]
+			new_rotation_point = [4, 1]
+		elif new_tetromino_type == 5:
 			#T-form 
-			is_valid = True
-			for n in range(len(self.board[0])):
-				if self.board[0][n] != 0 or self.board[1][n] != 0:
-					self.game_over()
-					is_valid = False
-					self.init_board()
-					self.start_game()	
-					break
-			if is_valid:
-				for n in range(len(self.board[0])):
-					if n == 4 or n == 5 or n == 6:
-						self.board[0][n] = number
-						if n == 5:
-							self.board[1][n] = number
-
-				self.current_block_pos["RelativePoints"] = [[-1, 1],[0, 0], [0, 1], [1, 1]]
-				self.current_block_pos["RotationPoint"] = [5,1]
+			new_relative_points = [[-1, 1],[0, 0], [0, 1], [1, 1]]
+			new_rotation_point = [4, 1]
 		else:
 			print("Error when gernerating random number")
 
+		#check if tetromino can be spawned without overlapping with another piece
+		if not self.check_if_tetromino_fits(new_relative_points, new_rotation_point=new_rotation_point):
+			return False
+
+		#set values for the new tetromino 
+		self.current_block_pos["RelativePoints"] = new_relative_points 
+		self.current_block_pos["RotationPoint"] = new_rotation_point 
+		self.tetromino_type = new_tetromino_type
+
+		#spawn new tetromino on map
+		self.add_tetromino_to_board()
+
+		return True
 
 	def game_over(self):
-		board = Image.open(self.res_path + "current_board.png").convert("RGBA")
+		board = Image.open(self.current_board_path).convert("RGBA")
 		board = board.filter(ImageFilter.BLUR)
 		board = board.filter(ImageFilter.BLUR)
 		board = board.filter(ImageFilter.BLUR)
 		sign = Image.open(self.sprites_path + "game_over.png").convert("RGBA")
 		sign = sign.resize((512, 256))
 		board.paste(sign, (80, 380), sign)
-		#TOOD: change back to current board
-		board.save(self.res_path + "current_board_over.png", "PNG")
+		board.save(self.current_board_path, "PNG")
 		
-	def update_picture(self):
-		total_height = (len(self.board))*64
-		total_width = (len(self.board[0]))*64
-		#open sprites
-		cyan = Image.open("sprites/cyan.png")
-		yellow = Image.open("sprites/yellow.png")
-		purple = Image.open("sprites/purple.png")
-		green = Image.open("sprites/green.png")
-		orange = Image.open("sprites/orange.png")
-		blank = Image.open("sprites/blank.png")
-		#resize sprites
-		cyan = cyan.resize((64, 64))
-		yellow = yellow.resize((64, 64))
-		purple = purple.resize((64, 64))
-		green = green.resize((64, 64))
-		orange = orange.resize((64, 64))
-		blank = blank.resize((64, 64))
-		image_size = cyan.size
-		new_image = Image.new("RGB", (total_width, total_height), (250, 250, 250))
-		for i in range(len(self.board)):
-			for n in range(len(self.board[0])):
-				if self.board[i][n] == 0:
-					new_image.paste(blank, (n*64, i*64))
-				elif self.board[i][n] == 1:
-					new_image.paste(orange, (n*64, i*64))
-				elif self.board[i][n] == 2:
-					new_image.paste(yellow, (n*64, i*64))
-				elif self.board[i][n] == 3:
-					new_image.paste(cyan, (n*64, i*64))
-				elif self.board[i][n] == 4:
-					new_image.paste(green, (n*64, i*64))					
-				elif self.board[i][n] == 5:
-					new_image.paste(purple, (n*64, i*64))
-				else:
-					print("Error: list is wrong")
-		self.current_count += 1		
-		new_image.save("sprites/current_board.png", "PNG")
+	def update_image(self):
+		width = (len(self.board[0])) * self.TILE_SIZE
+		height = (len(self.board)) * self.TILE_SIZE 
 
+		#open sprites
+		cyan   = Image.open(self.sprites_path + "cyan.png")
+		yellow = Image.open(self.sprites_path + "yellow.png")
+		purple = Image.open(self.sprites_path + "purple.png")
+		green  = Image.open(self.sprites_path + "green.png")
+		orange = Image.open(self.sprites_path + "orange.png")
+		blank  = Image.open(self.sprites_path + "blank.png")
+
+		#resize sprites
+		cyan   =   cyan.resize((self.TILE_SIZE, self.TILE_SIZE))
+		yellow = yellow.resize((self.TILE_SIZE, self.TILE_SIZE))
+		purple = purple.resize((self.TILE_SIZE, self.TILE_SIZE))
+		green  =  green.resize((self.TILE_SIZE, self.TILE_SIZE))
+		orange = orange.resize((self.TILE_SIZE, self.TILE_SIZE))
+		blank  =  blank.resize((self.TILE_SIZE, self.TILE_SIZE))
+
+		#create new image based on array
+		new_image = Image.new("RGB", (width, height), (250, 250, 250))
+		tile_dict = {
+			0: blank,
+			1: orange,
+			2: yellow,
+			3: cyan,
+			4: green,
+			5: purple
+		}
+
+		for row in range(len(self.board)):
+			for col in range(len(self.board[0])):
+				#calculate position of tile
+				tile_position = (col * self.TILE_SIZE, row * self.TILE_SIZE)
+				# paste tile at according grid position based on col and row 
+				new_image.paste(tile_dict[self.board[row][col]], tile_position)
+
+		self.image_count += 1		
+		#save image
+		new_image.save(self.current_board_path, "PNG")
+
+	#opens the picture of the current board
 	def show_board(self):
-		image = Image.open("sprites/current_board.png")
+		image = Image.open(self.current_board_path)
 		image.show()
+
+	def run_game(self):
+		self.start_game()
+		while(True):
+			action = int(input())
+
+			if(action == 0):
+				self.move_left()
+			elif(action == 1):
+				self.move_right()
+			else:
+				self.rotate()
+
+			can_move_down_further = self.move_down_tetromino(1)
+			if not can_move_down_further:
+				can_be_spawned = self.spawn_new_tetromino()
+				if can_be_spawned:
+					break
+
+		self.game_over()
+			
 			
 	def start_game(self):
-		self.spawn_new_block()
-		self.update_picture()
+		self.spawn_new_tetromino()
+		self.update_image()
 
 if __name__ == "__main__":
 	bot = TetrisBot()
-	bot.game_over()
-
-
+	bot.run_game()
 
 	#bot.start_game()
 	

@@ -82,7 +82,7 @@ class TwitterBot:
 		tetris.start_game()
 
 		while running:
-			tetris.move_down_current_block(1)
+			tetris.move_down_tetromino(1)
 			state = self.check_control(api)
 			if state == 0:
 				tetris.rotate()
@@ -91,8 +91,8 @@ class TwitterBot:
 			elif state == 2:
 				tetris.move_right()
 			elif state == 3:
-				tetris.move_down_current_block(18)
-			tetris.update_picture()
+				tetris.move_down_tetromino(18)
+			tetris.update_image()
 			self.post_board(api)
 			print("Posting board")
 			time.sleep(15*60)

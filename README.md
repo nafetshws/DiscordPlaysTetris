@@ -1,6 +1,5 @@
-# Twitter plays Tetris 
-This is a bot which lets the Twitter community play Tetris. You can engage with the bot by liking, commenting and retweeting.
-![Twitter plays Tetris](TwitterPlaysTetris.png)
+# Discord plays Tetris 
+This is a bot which lets your Discord community play Tetris. You can engage with the bot by reacting to its messages. 
 
 ## Controls
 How can the community influence the game:
@@ -14,9 +13,9 @@ The majority will decide what the next In-Game action will be.
 The game will be updated every 30 minutes. The reason for this limitation is the Twitter API (free tier).
 
 ## How to run
-First you need to install pillow:
+First you need to install pillow and discord:
 ```shell
-pip3 install pillow
+pip3 install pillow discord
 ```
 Then you can run
 ```

@@ -68,7 +68,6 @@ class TetrisBot:
 		return absolute_coordinates
 
 	def move_left(self):
-		print("Trying to move left")
 		#check if one tile is already in the leftmost position
 		for pos in self.get_absolute_coordinates():
 			if pos[0] <= 0:
@@ -83,17 +82,14 @@ class TetrisBot:
 			if self.board[row][col - 1] != 0 and [col - 1, row] not in self.get_absolute_coordinates():
 				return
 
-		print("Actually moving to the left")
 		#Move tetromino to the left
-		for pos in self.get_absolute_coordinates():
-			#Make the tiles at the old coordinates blank
-			self.board[pos[1]][pos[0]] = 0
+		self.remove_tetromino_from_board()
+
 		if len(self.current_block_pos["RotationPoint"]) != 0:
 			#Move the rotation point one tile to the left
-			self.current_block_pos["RotationPoint"][0] = self.current_block_pos["RotationPoint"][0] - 1
-		for pos in self.get_absolute_coordinates():
-			#Set new tile positions
-			self.board[pos[1]][pos[0]] = self.tetromino_type
+			self.current_block_pos["RotationPoint"][0] -= 1 
+
+		self.add_tetromino_to_board()
 
 	def move_right(self):
 		for pos in self.get_absolute_coordinates():
@@ -167,10 +163,6 @@ class TetrisBot:
 		self.add_tetromino_to_board()
 
 		return can_go_down_further
-		#Tetromino can't go down any further. 
-		#if not can_go_down_further:
-		#	self.clear_lines()
-		#	self.spawn_new_tetromino()
 
 	#Sets tetromino positions on the board
 	def add_tetromino_to_board(self):
@@ -217,6 +209,7 @@ class TetrisBot:
 
 		return True
 
+	#clears all full lines
 	def clear_lines(self):
 		#init dict
 		elements_per_row = {}
@@ -259,7 +252,7 @@ class TetrisBot:
 		elif new_tetromino_type == 3:
 			#I-Form 
 			new_relative_points = [[-1, 0],[0, 0], [1, 0], [2, 0]]
-			new_rotation_point = [5, 0]
+			new_rotation_point = [4, 0]
 		elif new_tetromino_type == 4:
 			#S-form
 			new_relative_points = [[-1, 0],[0, 0], [0, 1], [1, 1]]
@@ -357,8 +350,10 @@ class TetrisBot:
 			can_move_down_further = self.move_down_tetromino(1)
 			if not can_move_down_further:
 				can_be_spawned = self.spawn_new_tetromino()
-				if can_be_spawned:
+				if not can_be_spawned:
 					break
+
+			self.update_image()
 
 		self.game_over()
 			

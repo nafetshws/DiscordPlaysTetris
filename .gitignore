@@ -2,3 +2,4 @@ debug.log
 res/history
 .DS_STORE
 *.json
+src/__*

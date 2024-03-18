@@ -1,4 +1,4 @@
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageFont, ImageDraw
 import random
 import os
 
@@ -10,6 +10,7 @@ class TetrisBot:
 		self.tetromino_type = 0
 		self.can_go_down_further = True
 		self.image_count = 0
+		self.score = 0
 
 		#paths to sprites
 		self.res_path = os.path.dirname(__file__) + "/../res/" 
@@ -145,22 +146,26 @@ class TetrisBot:
 
 	def move_down_tetromino(self, distance):
 		can_go_down_further = True
-
+		lines_dropped = 0
 		#remove tetromino from board
 		self.remove_tetromino_from_board()
 
 		#Move tetromino at most <distance> blocks down
-		for _ in range(distance):
+		for i in range(distance):
 			if self.can_tetromino_move_down():
 				#move rotation point down by one
 				self.current_block_pos["RotationPoint"] = [self.current_block_pos["RotationPoint"][0], self.current_block_pos["RotationPoint"][1] + 1]
 				can_go_down_further = True
 			else:
 				can_go_down_further = False
+				lines_dropped = i
 				break
 
 		#add tetromino to board again
 		self.add_tetromino_to_board()
+		#add score if it was dropped
+		if distance > 1:
+			self.score += lines_dropped
 
 		return can_go_down_further
 
@@ -211,6 +216,8 @@ class TetrisBot:
 
 	#clears all full lines
 	def clear_lines(self):
+		#amount of lines is used for calculating the score
+		amount_of_lines_removed = 0
 		#init dict
 		elements_per_row = {}
 		for i in range(len(self.board)):
@@ -225,7 +232,19 @@ class TetrisBot:
 		#clear full lines
 		for row in range(len(self.board)):
 			if elements_per_row[row] >= 10:
+				amount_of_lines_removed += 1
 				self.delete_row(row)
+
+		#add score
+		if amount_of_lines_removed == 4:
+			self.score += 1200
+		elif amount_of_lines_removed == 3:
+			self.score += 300
+		elif amount_of_lines_removed == 2:
+			self.score += 100
+		elif amount_of_lines_removed == 1:
+			self.score += 40
+
 
 	#removes a line and placed an empty line on top
 	def delete_row(self, list_index):
@@ -234,7 +253,10 @@ class TetrisBot:
 		self.board.insert(0, tmp)
 
 	def spawn_new_tetromino(self):
-		new_tetromino_type = random.randint(1, 5)
+		#clear filled lines
+		self.clear_lines()
+
+		new_tetromino_type = random.randint(1, 7)
 		self.current_block_pos["RelativePoints"].clear()
 		self.current_block_pos["RotationPoint"].clear()
 
@@ -243,24 +265,34 @@ class TetrisBot:
 
 		if new_tetromino_type == 1:
 			#L-form 
-			new_relative_points = [[-1, -1],[-1, 0],[0, 0], [1, 0]]
-			new_rotation_point = [4, 0]
+			new_relative_points = [[-1, 0], [0, 0], [1, 1], [1, 0]]
+			new_rotation_point = [4, 1]
 		elif new_tetromino_type == 2:
 			#O-form 
-			new_relative_points = [[0, 1],[0, 0], [1, 0], [1, 1]]
+			new_relative_points = [[0, 1], [0, 0], [1, 0], [1, 1]]
 			new_rotation_point = [4, 1]
 		elif new_tetromino_type == 3:
 			#I-Form 
-			new_relative_points = [[-1, 0],[0, 0], [1, 0], [2, 0]]
+			new_relative_points = [[-1, 0], [0, 0], [1, 0], [2, 0]]
 			new_rotation_point = [4, 0]
 		elif new_tetromino_type == 4:
 			#S-form
-			new_relative_points = [[-1, 0],[0, 0], [0, 1], [1, 1]]
+			new_relative_points = [[-1, 0], [0, 0], [0, 1], [1, 1]]
 			new_rotation_point = [4, 1]
 		elif new_tetromino_type == 5:
 			#T-form 
-			new_relative_points = [[-1, 1],[0, 0], [0, 1], [1, 1]]
+			new_relative_points = [[-1, 0], [0, 0], [0, 1], [1, 0]]
 			new_rotation_point = [4, 1]
+		elif new_tetromino_type == 6:
+			#J-Form
+			new_relative_points = [[-1, 0], [0, 0], [-1, 1], [1, 0]]
+			new_rotation_point = [4, 1]
+			pass
+		elif new_tetromino_type == 7:
+			#Z-Form
+			new_relative_points = [[-1, 1], [0, 0], [0, 1], [1, 0]]
+			new_rotation_point = [4, 1]
+			pass
 		else:
 			print("Error when gernerating random number")
 
@@ -280,12 +312,30 @@ class TetrisBot:
 
 	def game_over(self):
 		board = Image.open(self.current_board_path).convert("RGBA")
+		#make background blurry
 		board = board.filter(ImageFilter.BLUR)
 		board = board.filter(ImageFilter.BLUR)
 		board = board.filter(ImageFilter.BLUR)
 		sign = Image.open(self.sprites_path + "game_over.png").convert("RGBA")
-		sign = sign.resize((512, 256))
-		board.paste(sign, (80, 380), sign)
+		#width and height of the game over sign
+		width = 1024
+		height = 512
+		#x and y coordinates that make the game over sign centered
+		x = (len(self.board[0]) * self.TILE_SIZE - width) // 2
+		y = (len(self.board) * self.TILE_SIZE - height) // 2 - 50
+		#paste game over in image
+		sign = sign.resize((width, height))
+		board.paste(sign, (x, y), sign)
+
+		#add score
+		textImage = ImageDraw.Draw(board)
+		imageFont = ImageFont.load_default(100)
+		scoreMessage = "Score: {}".format(self.score)
+		#get width of text
+		_, _, w, h = textImage.textbbox((0, 0), scoreMessage, font=imageFont)
+		#paste text in image
+		textImage.text(((len(self.board[0]) * self.TILE_SIZE - w) // 2, y + height), scoreMessage, (255, 255, 255), font=imageFont)
+
 		board.save(self.current_board_path, "PNG")
 		
 	def update_image(self):
@@ -299,6 +349,8 @@ class TetrisBot:
 		green  = Image.open(self.sprites_path + "green.png")
 		orange = Image.open(self.sprites_path + "orange.png")
 		blank  = Image.open(self.sprites_path + "blank.png")
+		blue   = Image.open(self.sprites_path + "blue.png")
+		red    = Image.open(self.sprites_path + "red.png")
 
 		#resize sprites
 		cyan   =   cyan.resize((self.TILE_SIZE, self.TILE_SIZE))
@@ -307,6 +359,8 @@ class TetrisBot:
 		green  =  green.resize((self.TILE_SIZE, self.TILE_SIZE))
 		orange = orange.resize((self.TILE_SIZE, self.TILE_SIZE))
 		blank  =  blank.resize((self.TILE_SIZE, self.TILE_SIZE))
+		blue  =    blue.resize((self.TILE_SIZE, self.TILE_SIZE))
+		red    =    red.resize((self.TILE_SIZE, self.TILE_SIZE))
 
 		#create new image based on array
 		new_image = Image.new("RGB", (width, height), (250, 250, 250))
@@ -316,7 +370,9 @@ class TetrisBot:
 			2: yellow,
 			3: cyan,
 			4: green,
-			5: purple
+			5: purple,
+			6: blue,
+			7: red,
 		}
 
 		for row in range(len(self.board)):
@@ -335,7 +391,7 @@ class TetrisBot:
 		image = Image.open(self.current_board_path)
 		image.show()
 
-	def run_game(self):
+	def run_game_from_console(self):
 		self.start_game()
 		while(True):
 			action = int(input())
@@ -344,8 +400,12 @@ class TetrisBot:
 				self.move_left()
 			elif(action == 1):
 				self.move_right()
-			else:
+			elif action == 2:
 				self.rotate()
+			elif action == 3:
+				self.move_down_tetromino(20)
+			else:
+				break
 
 			can_move_down_further = self.move_down_tetromino(1)
 			if not can_move_down_further:
@@ -356,15 +416,19 @@ class TetrisBot:
 			self.update_image()
 
 		self.game_over()
-			
-			
+				
 	def start_game(self):
+		#init values
+		self.current_block_pos = {"RotationPoint": [], "RelativePoints": []}
+		self.tetromino_type = 0
+		self.can_go_down_further = True
+		self.image_count = 0
+		self.score = 0
+		self.init_board()
+
 		self.spawn_new_tetromino()
 		self.update_image()
 
 if __name__ == "__main__":
 	bot = TetrisBot()
-	bot.run_game()
-
-	#bot.start_game()
-	
+	bot.run_game_from_console()	

@@ -1,27 +1,33 @@
 # Discord plays Tetris 
-This is a bot which lets your Discord community play Tetris. You can engage with the bot by reacting to its messages. 
+This discord bot lets your Discord community play Tetris. You can engage with the bot by reacting to its messages. 
 
-## Controls
-How can the community influence the game:
-1. **Like**: Rotate (clockwise)
-2. **Comment**: Move left
-3. **Retweet**: Move right
-
-The majority will decide what the next In-Game action will be.
-
-## Game Updates
-The game will be updated every 30 minutes. The reason for this limitation is the Twitter API (free tier).
+![Tetris](res/md/GameOverExample.png)
 
 ## How to run
-First you need to install pillow and discord:
+Head to the [Discord Developer Portal](https://discord.com/developers/applications) and create a new application. \
+Copy the token and paste it in a file named discord_auth.json in the root directory:
+```json
+{"TOKEN": "<Your Token>"}
+```
+Now you need to install pillow, discord.py and emoji:
 ```shell
-pip3 install pillow discord
+pip3 install pillow discord emoji
 ```
 Then you can run
 ```
 python3 src/TetrisBot.py
 ```
 
-## TODO
-- update blank tile
-- update game over png
+## Features
+To play with friends you'll first have to set a default text-channel, that the bot can use:
+
+![Set default text-channel](res/md/set-default-channel.png)
+
+Next the bot will pin a message with all the controls:
+
+![Controls](res/md/controls.png)
+
+Once you start the game, you and your friends can start reacting to it's messages and play Tetris. Whichever emojiy has been used the most will decide how the game progresses. Have fun!
+
+## Note
+This used to be a bot for Twitter. You were able to influence the game by liking, commenting and retweeting. Unfortunately, due to the new strict Twitter API limitations, this is not possible anymore.

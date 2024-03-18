@@ -3,9 +3,8 @@ from discord.ext import commands
 from TetrisBot import TetrisBot
 import json
 import os
-import time
 import asyncio
-import emoji 
+import emoji
 
 def load_token():
     try:
@@ -31,12 +30,7 @@ class TetrisBotForDiscord(commands.Bot):
         self.add_commands()
  
     async def on_ready(self):
-        print("Hello {}".format(self.user.name))
-
-    async def on_reaction_add(self, reaction : discord.Reaction, user : discord.User):
-        pass
-        #print(user.name)
-        #print(reaction.emoji)
+        print("{} is now online and ready to be used. Start with setting the default text channel by using !default #<text-channel-name>".format(self.user.name))
 
     async def write(self, ctx, msg):
         if self.default_text_channel is None:
@@ -47,7 +41,7 @@ class TetrisBotForDiscord(commands.Bot):
     async def send_current_board(self):
         with open(os.path.dirname(__file__) + "/../res/current_board.png", "rb") as f:
             image = discord.File(f)
-            return await self.default_text_channel.send(file=image)
+            return await self.default_text_channel.send("Score: {}".format(0 if self.tetris_bot is None else self.tetris_bot.score), file=image)
 
     #returns a dict with the amount of certain emojis
     async def count_reactions(self, ctx, msg_id):
@@ -73,11 +67,10 @@ class TetrisBotForDiscord(commands.Bot):
 
     def add_commands(self):
         @self.command(name="default")
+        @commands.has_permissions(administrator=True)
         async def set_default_text_channel(ctx, channel : discord.TextChannel):
             self.default_text_channel = channel
-
-
-            DEFAULT_CHANNEL_MSG = "This is now the default text channel of <@{}>\nHow to engange with the bot react with the following Emojis or use the following commands:\n\n**Start a new game**: {}start\n**Move left**: {}\n**Move right**: {}\n**Drop down**: {}\n**Rotate (clockwise)**: {}".format(self.user.id, self.command_prefix, self.left, self.right, self.down, self.rotate)
+            DEFAULT_CHANNEL_MSG = "This is now the default text channel of <@{}>\nIn order to engange with the bot react with the following Emojis or use the following commands:\n\n**Start a new game**: {}start\n**Abort a game**: {}stop\n**Move left**: {}\n**Move right**: {}\n**Drop down**: {}\n**Rotate (clockwise)**: {}".format(self.user.id, self.command_prefix, self.command_prefix, self.left, self.right, self.down, self.rotate)
             message = await self.default_text_channel.send(DEFAULT_CHANNEL_MSG)
             await message.pin()
 
@@ -92,11 +85,58 @@ class TetrisBotForDiscord(commands.Bot):
             self.tetris_bot.start_game()
             msg = await self.send_current_board()
 
-            #wait 30s
-            await asyncio.sleep(10)
+            isGameOver = False
+            timeToPlay = 5
 
-            await self.count_reactions(ctx, msg.id)
+            while not isGameOver:
+                #Wait a few seconds. The time it will wait, decreases each time a new block is spawned 
+                await asyncio.sleep(timeToPlay)
 
+                #evaluate which action to take
+                reactions = await self.count_reactions(ctx, msg.id)
+                action = max(reactions, key=reactions.get)
+
+                #execute action based on amount of votes
+                if reactions[action] == 0:
+                    pass
+                elif action == self.left:
+                    self.tetris_bot.move_left()
+                    pass
+                elif action == self.right:
+                    self.tetris_bot.move_right()
+                    pass
+                elif action == self.rotate:
+                    self.tetris_bot.rotate()
+                    pass
+                else: 
+                    #drop down
+                    self.tetris_bot.move_down_tetromino(20)
+                    pass
+
+                can_move_down_further = self.tetris_bot.move_down_tetromino(1)
+                if not can_move_down_further:
+                    can_spawn_new_tetromino = self.tetris_bot.spawn_new_tetromino()
+                    if not can_spawn_new_tetromino:
+                        #Game Over
+                        isGameOver = True
+
+                #stop the game
+                if not self.game_instance_running:
+                    return
+
+                self.tetris_bot.update_image()
+                msg = await self.send_current_board()
+            
+            self.tetris_bot.game_over()
+            await self.send_current_board()
+            self.game_instance_running = False
+
+        @self.command("stop")
+        @commands.has_permissions(administrator=True)
+        async def stop_game(ctx):
+            self.game_instance_running = False
+            await self.write(ctx, "Aborted the game.")
+            
 
 
 if __name__ == "__main__":
